@@ -65,7 +65,7 @@ warning.
 | `Deconvolved/OASIS` | OASIS event amplitudes (ΔF/F units), 0 between events. |
 | `SummaryImages` | Suite2p's mean image, max projection and correlation map. |
 
-All series have `timestamps` (s, session clock; one array, linked by the others). Planes k > 0 get a
+All series are on the session clock (s): regular frame times (every interval within 0.1 % of the median, no gaps) are written as `starting_time` + `rate`, irregular ones as `timestamps` (one array, linked by the others). Planes k > 0 get a
 `_plane<k>` suffix. `rois.csv`: `session_id, plane, roi_id, accepted, iscell_prob, x, y, npix,
 radius, compact, snr, noise_level, f0_median, f0_floored, dff_max, cascade_rate_hz, oasis_events,
 oasis_event_rate_hz` (+ `subject_id, condition, group` from the sheet). Figures:
@@ -175,9 +175,6 @@ median r > 0.85, mean rate within 10 % of the planted rate; OASIS r ≈ 0.78, ev
   placeholder (1970-01-01), it has no `subject` (nwb-inspect then reports it as not DANDI-ready:
   DANDI requires a subject), and times start at 0 when there are no timestamps. Link the session's
   NWB into `session`.
-- nwb-inspect reports a best-practice violation on every series: the timestamps are (nearly)
-  regular, so NWB would prefer `starting_time` + `rate`. They are written as explicit `timestamps`
-  on purpose (conventions.md: the session clock, as Suite2p's frame times give it).
 
 ## Licences
 

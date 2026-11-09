@@ -11,7 +11,9 @@ processing/ophys/
   Deconvolved/RoiResponseSeries              CASCADE spike rate (spikes/s; NaN for ROIs not inferred)
   Deconvolved/OASIS                          OASIS event amplitudes (ΔF/F units)
   SummaryImages/{mean, max_projection, correlation}   from Suite2p's ops
-all with `timestamps` (seconds, session clock; one array, linked by the other series). With more
+all on the session clock (seconds): regular series (every interval within 0.1 % of the median, no
+gaps) as `starting_time` + `rate`, irregular ones with explicit `timestamps` (one array, linked by
+the other series). With more
 than one plane, plane k > 0 gets `PlaneSegmentation_plane<k>`, `RoiResponseSeries_plane<k>`, ...
 
 The file gets a new UUID identifier; the source NWB's file name and identifier go into `notes`.
@@ -79,6 +81,18 @@ def _dt(v):
     except ValueError:
         return None
     return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def regular_rate(times, tol: float = 0.001) -> float | None:
+    """The rate when every frame interval is within tol (0.1 %) of the median (no gaps), else None."""
+    t = np.asarray(times, np.float64)
+    if len(t) < 2:
+        return None
+    dt = np.diff(t)
+    med = float(np.median(dt))
+    if med <= 0 or np.any(np.abs(dt - med) > tol * med):
+        return None
+    return (len(t) - 1) / (t[-1] - t[0])
 
 
 def write(path: Path, session_id: str, identity: dict, planes: list[dict], meta: dict) -> list[str]:
@@ -172,10 +186,15 @@ def write(path: Path, session_id: str, identity: dict, planes: list[dict], meta:
         region = ps.create_roi_table_region(region=list(range(len(pl["stat"]))), description="all ROIs")
         times = np.asarray(pl["times"], np.float64)
 
+        regular = regular_rate(times)
+
         def series(name, data, unit, desc):
             nonlocal ts_link
             d = H5DataIO(np.ascontiguousarray(np.asarray(data, np.float32).T), compression="gzip",
                          compression_opts=4, shuffle=True)
+            if regular is not None:     # conventions.md "Time": regular series as starting_time + rate
+                return RoiResponseSeries(name=name, data=d, rois=region, unit=unit,
+                                         starting_time=float(times[0]), rate=regular, description=desc)
             if ts_link is None or len(ts_link.timestamps) != len(times):
                 rs = RoiResponseSeries(name=name, data=d, rois=region, unit=unit, timestamps=times,
                                        description=desc)

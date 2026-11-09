@@ -80,14 +80,15 @@ def test_nwb_contract(run):
         for path in ("Fluorescence/RoiResponseSeries", "Fluorescence/Neuropil", "DfOverF/RoiResponseSeries",
                      "Deconvolved/RoiResponseSeries", "Deconvolved/OASIS"):
             assert o[path]["data"].shape == (1500, 30), path
-            assert "timestamps" in o[path]
-        ts = o["DfOverF/RoiResponseSeries/timestamps"][:]
-        assert ts[0] == pytest.approx(100.0) and len(ts) == 1500   # session clock, not re-zeroed
+            assert "starting_time" in o[path]                          # regular frames: start + rate
+        st = o["DfOverF/RoiResponseSeries/starting_time"]
+        assert st[()] == pytest.approx(100.0)                          # session clock, not re-zeroed
+        assert st.attrs["rate"] == pytest.approx(15.0)
         rate = o["Deconvolved/RoiResponseSeries/data"][:]
         assert np.isnan(rate[:, 24:]).all() and np.isfinite(rate[:, :24]).all()
     with h5py.File(top / f"{LAB}_ophys.nwb", "r") as f:
-        ts = f["processing/ophys/DfOverF/RoiResponseSeries/timestamps"][:]
-        assert ts[0] == 0.0 and np.median(np.diff(ts)) == pytest.approx(1 / 30)
+        st = f["processing/ophys/DfOverF/RoiResponseSeries/starting_time"]
+        assert st[()] == 0.0 and st.attrs["rate"] == pytest.approx(30)
 
 
 @pytest.mark.parametrize("sid", [SID, LAB])
@@ -98,7 +99,7 @@ def test_spike_inference_matches_planted_spikes(run, fixture_dir, sid):
     with h5py.File(top / f"{sid}_ophys.nwb", "r") as f:
         rate = f["processing/ophys/Deconvolved/RoiResponseSeries/data"][:].T[:n]
         ev = f["processing/ophys/Deconvolved/OASIS/data"][:].T[:n]
-        fs = 1 / np.median(np.diff(f["processing/ophys/DfOverF/RoiResponseSeries/timestamps"][:]))
+        fs = f["processing/ophys/DfOverF/RoiResponseSeries/starting_time"].attrs["rate"]
     sp = truth["spikes"][:n]
     e = slice(40, -40)
     c_cas = [np.corrcoef(rate[i, e], gaussian_filter1d(sp[i], 1.0)[e])[0, 1] for i in range(n)]
@@ -156,3 +157,13 @@ def test_baselines():
         assert np.all(np.abs(b - 100) < 3)
     d, F0, fl = dff(x + 50, np.full_like(x, 50 / 0.7), 10, 0.7, "maximin", 60, 8)
     assert abs(np.median(d)) < 0.02 and fl.max() == 0
+
+
+def test_regular_rate():
+    from processor.nwb_out import regular_rate
+    assert regular_rate(5.0 + np.arange(100) / 15.04) == pytest.approx(15.04)
+    t = np.arange(100) / 10.0
+    t[50:] += 0.5                                   # a gap
+    assert regular_rate(t) is None
+    jitter = np.arange(100) / 10.0 + np.r_[0, 0.001, np.zeros(98)]   # 1 % jitter on one frame
+    assert regular_rate(jitter) is None
