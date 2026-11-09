@@ -1,0 +1,15 @@
+# Local tests and validation (macOS / Linux): pip install -r requirements-dev.txt, then `make cascade`
+# (fetches CascadeTorch with the issue-90 fix and the CASCADE models into data/cascade/).
+torch==2.14.1
+numpy==2.5.4
+scipy==1.18.1
+h5py==3.16.0
+pynwb==4.2.0
+hdmf==6.2.0
+oasis-deconv==0.3.2
+ruamel.yaml==0.19.1
+matplotlib==3.11.2
+pytest==8.4.1
+jsonschema==3.2.0
+PyYAML==6.0.3
+cffconvert==2.0.0

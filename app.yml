@@ -1,0 +1,159 @@
+# yaml-language-server: $schema=https://schemas.pennsieve.io/app-manifest/v1.json
+schemaVersion: "1.0"
+application:
+  name: ophys-traces
+  description: >-
+    From Suite2p output to calibrated activity: neuropil correction, ΔF/F with a running baseline,
+    spike rates with CASCADE (Rupprecht, Helmchen et al.; PyTorch port CascadeTorch, GPL-3.0, with
+    its pretrained models, GCaMP8 models included) and discrete events with OASIS (Friedrich, Zhou &
+    Paninski), packaged by Pennsieve. Writes one NWB ophys file per session (ROI masks, F, neuropil,
+    ΔF/F, CASCADE rate, OASIS events, all on the session clock, with the session's identity copied
+    from its NWB), rois.csv, and figures (example traces, noise levels, SNR). Reads the suite2p app's
+    output or any lab's Suite2p folders.
+  type: processor
+  tags:
+    - neuroscience
+    - calcium-imaging
+    - two-photon
+    - nwb
+    - spike-inference
+    - cascade
+    - oasis
+    - deep-learning
+    - quality-control
+runtime:
+  # cpu variant (the default). Measured: 897 ROIs x 2,001 frames of the Allen demo, peak 1.4 GB;
+  # CASCADE is the slow part on CPU (README "Runtime").
+  cpu: 4096
+  memory: 4096
+  computeTypes:
+    - standard
+  timeoutSeconds: 28800
+parameters:
+  - name: NEUROPIL_COEFFICIENT
+    type: number
+    description: F_corr = F - r x F_neu; 0.7 is Suite2p's and the field's default (Allen estimates r per ROI, typically 0.1-0.4).
+    defaultValue: 0.7
+  - name: BASELINE
+    type: string
+    description: >-
+      maximin (Suite2p's: smooth, running minimum, then running maximum) or percentile (a running
+      BASELINE_PERCENTILE-th percentile), each over BASELINE_WINDOW_S.
+    defaultValue: maximin
+  - name: BASELINE_WINDOW_S
+    type: number
+    description: Window of the running baseline (s).
+    defaultValue: 60
+  - name: BASELINE_PERCENTILE
+    type: number
+    description: Percentile for BASELINE=percentile.
+    defaultValue: 8
+  - name: TAU
+    type: number
+    description: Indicator decay time (s) for OASIS; 0 = the value the Suite2p run used (ops["tau"]), else 0.7.
+    defaultValue: 0
+  - name: INDICATOR
+    type: string
+    description: >-
+      auto (from the session NWB's imaging plane, else generic), gcamp6f, gcamp6s or other (CASCADE's Global_EXC
+      models, trained on GCaMP6, OGB-1, Cal-520, R-CaMP and more), or gcamp8 (CASCADE's GC8 models).
+    defaultValue: auto
+  - name: CASCADE_MODEL
+    type: string
+    description: auto (by indicator, frame rate and noise level; see README) or the name of a bundled model.
+    defaultValue: auto
+  - name: CASCADE_ALL_ROIS
+    type: boolean
+    description: Run CASCADE on every ROI, not only the accepted cells (others get NaN otherwise).
+    defaultValue: false
+  - name: OASIS_THRESHOLD_SD
+    type: number
+    description: Smallest OASIS event, in noise standard deviations of the ROI's ΔF/F.
+    defaultValue: 3
+  - name: CLASSIFIER_THRESHOLD
+    type: number
+    description: Empty = use Suite2p's iscell decision; a number = accept ROIs with classifier probability at least this.
+    defaultValue: ""
+  - name: EXAMPLE_ROIS
+    type: integer
+    description: ROIs shown in the example-traces figure.
+    defaultValue: 8
+  - name: SEED
+    type: integer
+    description: Seed for numpy and torch.
+    defaultValue: 42
+  - name: THREADS
+    type: integer
+    description: CPU threads; 0 = one per CPU of the container's quota.
+    defaultValue: 0
+  - name: USE_GPU
+    type: string
+    description: auto, true or false. The cpu variant's image has no CUDA libraries.
+    defaultValue: "false"
+inputs:
+  - name: suite2p
+    description: >-
+      Suite2p output: the suite2p app's suite2p/<session_id>/plane<k>/ (with session.json and
+      timestamps.npy), or any folder with stat.npy, F.npy, Fneu.npy, ops.npy (and iscell.npy), e.g.
+      a lab's <recording>/suite2p/plane0/. Optional sessions.csv naming the sessions.
+    mediaTypes:
+      - application/octet-stream
+      - application/json
+      - text/csv
+      - image/png
+    placement: subfolder
+    required: true
+  - name: session
+    description: >-
+      Optional: the session's NWB file (e.g. the Allen processed file or a DANDI asset), matched by
+      sub-<a>_ses-<b> or sessions.csv. Its session_start_time, identifier, subject and indicator are
+      copied into the output NWB.
+    mediaTypes:
+      - "application/x-hdf5; profile=nwb"
+    placement: subfolder
+    required: false
+outputs:
+  - name: traces
+    description: >-
+      ophys-traces/<session_id>_ophys.nwb (processing/ophys: ImageSegmentation/PlaneSegmentation with
+      pixel_mask, iscell, accepted; Fluorescence/RoiResponseSeries and Neuropil; DfOverF/RoiResponseSeries;
+      Deconvolved/RoiResponseSeries (CASCADE, spikes/s) and Deconvolved/OASIS; SummaryImages; all with
+      timestamps on the session clock), rois.csv, <session_id>_example_traces.png, _noise_levels.png,
+      _snr.png, summary.json, provenance.json.
+    mediaTypes:
+      - "application/x-hdf5; profile=nwb"
+      - text/csv
+      - image/png
+      - application/json
+variants:
+  - id: cpu
+    name: CPU
+    default: true
+    description: >-
+      CPU-only PyTorch on a standard task. Enough for typical sessions (hundreds of cells, tens of
+      thousands of frames take tens of minutes for CASCADE).
+    build:
+      args:
+        TORCH_FLAVOUR: cpu
+    runtime:
+      computeTypes: [standard]
+  - id: gpu
+    name: GPU
+    description: >-
+      CUDA PyTorch on an NVIDIA GPU (T4 or newer): CASCADE inference is many times faster, for long
+      recordings, thousands of ROIs or CASCADE_ALL_ROIS=true.
+    build:
+      args:
+        TORCH_FLAVOUR: cuda
+    runtime:
+      computeTypes: [gpu]
+      memory: 8192
+    parameters:
+      USE_GPU:
+        defaultValue: "auto"
+
+review:
+  version: 1
+  generate:
+    command: python -m tests.make_fixture "$REVIEW_INPUT_DIR" --layout both
+    root: linked
