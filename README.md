@@ -128,11 +128,11 @@ late.
 
 Measured with the `cpu` image in Docker, amd64 emulation on an Apple M-series Mac (4 vCPU,
 `--memory 4g`), on the suite2p app's output for the full Allen demo (1,363 ROIs, 385 accepted,
-9,405 frames at 15.04 Hz): **1,607 s wall (CASCADE 1,468 s on the 385 accepted cells, OASIS 22 s,
-the rest ΔF/F, figures and the NWB), peak memory 2.0 GB** (cgroup `memory.peak`). Natively (arm64,
-4 threads) CASCADE ran at about 0.35 s per ROI per 1,000 frames. CASCADE's time grows with ROIs ×
-frames; with `CASCADE_ALL_ROIS=true` it would be 3.5× longer here. Synthetic fixture (42 ROIs):
-under 30 s. Memory is small: the traces (ROIs × frames, a few copies) plus CASCADE's input windows,
+9,405 frames at 15.04 Hz): **420 s wall on an otherwise idle machine, peak memory 2.1 GB**
+(cgroup `memory.peak`); 1,607 s (CASCADE 1,468 s on the 385 accepted cells, OASIS 22 s) in an
+earlier run while other builds shared the CPUs. CASCADE dominates and grows with ROIs × frames
+(with `CASCADE_ALL_ROIS=true` it would be 3.5× longer here). Synthetic fixture (42 ROIs): under
+30 s. Memory is small: the traces (ROIs × frames, a few copies) plus CASCADE's input windows,
 chunked to 512 MB.
 
 GPU numbers: to be measured on the dev compute node.
@@ -141,9 +141,10 @@ GPU numbers: to be measured on the dev compute node.
 
 Full Allen demo (`workflow-systems-neuroscience/data/work/allen-2p/ophys-traces/`): 385 accepted
 cells; model `Global_EXC_15Hz_smoothing100ms` (indicator GCaMP6f from the session NWB, 15 Hz, noise
-p90 4.1 within the model's 2-8); median noise level 2.6; mean CASCADE rate 0.59 spikes/s; OASIS
+p90 4.1 within the model's 2-8); median SNR 4.0; median noise level 2.6; mean CASCADE rate 0.59 spikes/s; OASIS
 0.08 events/s; 26 ROIs with a floored baseline. Identity (start time, identifier, subject 496001363)
-copied from Allen's NWB; times on the session clock (5.74-631.01 s).
+copied from Allen's NWB; times on the session clock (5.74-631.01 s). nwb-inspect: pass, DANDI-ready
+(no schema errors, no violations; 2 suggestions: experimenter and keywords are not in Allen's file).
 
 **Sanity check against Allen** (not a validation: see Limitations): for the 201 cells that match an
 Allen ROI (suite2p app, IoU > 0.5), our ΔF/F correlates with Allen's own `DfOverF` with median r =
