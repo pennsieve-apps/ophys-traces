@@ -319,6 +319,43 @@ references:
   - type: other
     value: '31844315'
     description: PubMed ID
+- type: article
+  title: Relationship between simultaneously recorded spiking activity and fluorescence signal in GCaMP6
+    transgenic mice
+  authors:
+  - family-names: Huang
+    given-names: Lawrence
+  - family-names: Ledochowitsch
+    given-names: Peter
+  - family-names: Knoblich
+    given-names: Ulf
+  - family-names: Lecoq
+    given-names: Jérôme
+  - family-names: Murphy
+    given-names: Gabe J
+  - family-names: Reid
+    given-names: R Clay
+  - family-names: de Vries
+    given-names: Saskia EJ
+  - family-names: Koch
+    given-names: Christof
+  - family-names: Zeng
+    given-names: Hongkui
+  - family-names: Buice
+    given-names: Michael A
+  - family-names: Waters
+    given-names: Jack
+  - family-names: Li
+    given-names: Lu
+  year: 2021
+  doi: 10.7554/eLife.51675
+  journal: eLife
+  volume: 10
+  start: e51675
+  identifiers:
+  - type: other
+    value: '33683198'
+    description: PubMed ID
 - type: data
   title: Allen Institute - Visual Coding - Optical Physiology
   authors:

@@ -117,8 +117,8 @@ outputs:
     description: >-
       ophys-traces/<session_id>_ophys.nwb (processing/ophys: ImageSegmentation/PlaneSegmentation with
       pixel_mask, iscell, accepted; Fluorescence/RoiResponseSeries and Neuropil; DfOverF/RoiResponseSeries;
-      Deconvolved/RoiResponseSeries (CASCADE, spikes/s) and Deconvolved/OASIS; SummaryImages; all with
-      timestamps on the session clock), rois.csv, <session_id>_example_traces.png, _noise_levels.png,
+      Deconvolved/RoiResponseSeries (CASCADE, spikes/s) and Deconvolved/OASIS; SummaryImages; all on the session
+      clock: starting_time + rate when the frames are regular, else timestamps), rois.csv, <session_id>_example_traces.png, _noise_levels.png,
       _snr.png, summary.json, provenance.json.
     mediaTypes:
       - "application/x-hdf5; profile=nwb"

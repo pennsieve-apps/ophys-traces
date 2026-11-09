@@ -159,9 +159,10 @@ median r > 0.85, mean rate within 10 % of the planted rate; OASIS r ≈ 0.78, ev
   F0 is small and ΔF/F large, so absolute rates can be overestimated; relative rates across cells
   and time are more robust. Compare like with like.
 - CASCADE's ground truth includes Allen Institute recordings: datasets 10-13 of its database are
-  Huang, Ledochowitsch et al. (eLife 2021; Allen Institute cell-attached recordings in GCaMP6
-  transgenic mice, the data behind DANDI:000048), and the `Global_EXC` models are trained on them
-  (files `CAttached_Allen_Emx1_*` in CascadeTorch's `Ground_truth/`). The demo session itself is not
+  Huang, Ledochowitsch et al. (eLife 2021, doi:10.7554/eLife.51675; Allen Institute cell-attached
+  recordings in GCaMP6 transgenic mice, the data behind DANDI:000048), and the `Global_EXC` models are
+  trained on them (files `CAttached_Allen_Emx1_*` in CASCADE's `Ground_truth/`; numbered DS09-DS12 in
+  the bundled models' `config.yaml` training lists). The demo session itself is not
   in it, but the lab, lines and pipeline overlap, so results on the Allen demo are a **sanity check,
   not a validation** of the spike rates.
 - CASCADE's README puts the Allen Visual Coding data at a noise level of about 1. With r = 0.7 the
@@ -184,13 +185,22 @@ and `patches/`). The CASCADE models are distributed with CascadeTorch. See `THIR
 
 ## Citations
 
-If you use this app, cite CASCADE and OASIS (CASCADE asks for the 2021 paper as the primary reference,
-and the 2026 paper when GCaMP8 models are used) and the works below (also in `CITATION.cff`):
+Please cite these works if you use this app. CASCADE asks for the 2021 paper as the primary
+reference, and the 2026 paper when GCaMP8 models are used. Verified on Crossref/DataCite and PubMed;
+full author lists in `CITATION.cff`.
 
 - Rupprecht P, Carta S, Hoffmann A, Echizen M, Blot A, Kwan AC, Dan Y, Hofer SB, Kitamura K, Helmchen F, Friedrich RW (2021). A database and deep learning toolbox for noise-optimized, generalized spike inference from calcium imaging. *Nature Neuroscience* 24:1324-1337. doi:10.1038/s41593-021-00895-5
 - Rupprecht P, Rózsa M, Fang X, Svoboda K, Helmchen F (2026). Spike inference from calcium imaging data acquired with GCaMP8 indicators. *Nature Methods*. doi:10.1038/s41592-026-03183-x
 - Friedrich J, Zhou P, Paninski L (2017). Fast online deconvolution of calcium imaging data. *PLOS Computational Biology* 13:e1005423. doi:10.1371/journal.pcbi.1005423, PMID: 28291787
 - Stringer C, Ki C, Del Grosso N, LaFosse P, Zhang Q, Pachitariu M (2026). Extracting large-scale neural activity with Suite2p. *bioRxiv*. doi:10.64898/2026.02.04.703741
+- Huang L, Ledochowitsch P, Knoblich U, Lecoq J, Murphy GJ, Reid RC, de Vries SE, Koch C, Zeng H, Buice MA, Waters J, Li L (2021). Relationship between simultaneously recorded spiking activity and fluorescence signal in GCaMP6 transgenic mice. *eLife* 10:e51675. doi:10.7554/eLife.51675, PMID: 33683198 (CASCADE ground truth that includes Allen recordings; see Limitations)
 - Rübel O, Tritt A, Ly R, Dichter BK, Ghosh S, Niu L, Baker P, Soltesz I, Ng L, Svoboda K, Frank L, Bouchard KE (2022). The Neurodata Without Borders ecosystem for neurophysiological data science. *eLife* 11:e78362. doi:10.7554/eLife.78362, PMID: 36193886
 - Software: CascadeTorch (Rupprecht P), https://github.com/PTRRupprecht/CascadeTorch, commit c6978d5; OASIS (Friedrich J), https://github.com/j-friedrich/OASIS, 0.3.2.
 - Demo data: Baker C (2024). Allen Institute - Visual Coding - Optical Physiology. DANDI Archive. doi:10.48324/dandi.000728/0.240827.1809 (CC-BY-4.0); and de Vries SEJ, Lecoq JA, Buice MA, et al. (2020; full author list in `CITATION.cff` and the suite2p app's README). A large-scale standardized physiological survey reveals functional organization of the mouse visual cortex. *Nature Neuroscience* 23:138-151. doi:10.1038/s41593-019-0550-9, PMID: 31844315
+
+## Acknowledgements
+
+CASCADE and CascadeTorch are developed by Peter Rupprecht in the Helmchen lab (University of Zurich)
+with the co-authors above; OASIS by Johannes Friedrich, Pengcheng Zhou and Liam Paninski. The demo
+data are the Allen Institute's Allen Brain Observatory (Visual Coding - Optical Physiology), shared
+on the DANDI Archive; the output format is Neurodata Without Borders (NWB).
