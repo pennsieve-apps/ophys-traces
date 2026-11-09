@@ -31,7 +31,9 @@ For the computational analyst: F_corr = F − r·F_neu (r = 0.7); F0 = Suite2p's
 (Gaussian σ 10 frames, running min then max over 60 s) or a running 8th percentile; F0 is floored
 at 10 % of the ROI's median raw F; ΔF/F = (F_corr − F0)/F0. CASCADE (CascadeTorch at c6978d5 plus
 the upstream timing fix, below) runs on the accepted ROIs with a model chosen by indicator, frame
-rate and noise level; OASIS (AR(1), decay `TAU`) with a minimum event size of 3 noise s.d.
+rate and noise level; OASIS (AR(1), decay `TAU`) with a minimum event size of 3 noise s.d. SNR = (99th
+percentile of ΔF/F − median) / noise s.d. (from frame-to-frame differences); noise level as CASCADE
+defines it (median |ΔF/F[t+1] − ΔF/F[t]| / √fs × 100).
 
 ## Ports
 
@@ -52,14 +54,14 @@ warning.
 
 ## Outputs
 
-`ophys-traces/<session_id>_ophys.nwb`, `processing/ophys`:
+`ophys-traces/<session_id>_ophys.nwb` (a new UUID `identifier`; the source NWB's name and identifier in `notes`; session_start_time, session_id, subject, keywords, ... copied), `processing/ophys`:
 
 | Object | Content |
 |---|---|
 | `ImageSegmentation/PlaneSegmentation` | Every Suite2p ROI: `pixel_mask` (x = column, y = row, weight = Suite2p's `lam`), `iscell` (classifier probability), `accepted` (analysed downstream), `roi_id`, `plane`, `snr`, `noise_level`, `f0_floored`. |
 | `Fluorescence/RoiResponseSeries`, `Fluorescence/Neuropil` | F and F_neu (Suite2p units). |
 | `DfOverF/RoiResponseSeries` | ΔF/F (fraction). |
-| `Deconvolved/RoiResponseSeries` | CASCADE spike rate (spikes/s); NaN for ROIs not accepted (unless `CASCADE_ALL_ROIS=true`); 0 in the first and last ~32 frames, where CASCADE's window has no data. |
+| `Deconvolved/RoiResponseSeries` | CASCADE spike rate (spikes/s, NWB unit `hertz`); NaN for ROIs not accepted (unless `CASCADE_ALL_ROIS=true`); 0 in the first and last ~32 frames, where CASCADE's window has no data. |
 | `Deconvolved/OASIS` | OASIS event amplitudes (ΔF/F units), 0 between events. |
 | `SummaryImages` | Suite2p's mean image, max projection and correlation map. |
 
@@ -124,13 +126,30 @@ late.
 
 ## Runtime
 
-RUNTIME_TABLE
+Measured with the `cpu` image in Docker, amd64 emulation on an Apple M-series Mac (4 vCPU,
+`--memory 4g`), on the suite2p app's output for the full Allen demo (1,363 ROIs, 385 accepted,
+9,405 frames at 15.04 Hz): **1,607 s wall (CASCADE 1,468 s on the 385 accepted cells, OASIS 22 s,
+the rest ΔF/F, figures and the NWB), peak memory 2.0 GB** (cgroup `memory.peak`). Natively (arm64,
+4 threads) CASCADE ran at about 0.35 s per ROI per 1,000 frames. CASCADE's time grows with ROIs ×
+frames; with `CASCADE_ALL_ROIS=true` it would be 3.5× longer here. Synthetic fixture (42 ROIs):
+under 30 s. Memory is small: the traces (ROIs × frames, a few copies) plus CASCADE's input windows,
+chunked to 512 MB.
 
 GPU numbers: to be measured on the dev compute node.
 
 ## Results on the demo
 
-DEMO_RESULTS
+Full Allen demo (`workflow-systems-neuroscience/data/work/allen-2p/ophys-traces/`): 385 accepted
+cells; model `Global_EXC_15Hz_smoothing100ms` (indicator GCaMP6f from the session NWB, 15 Hz, noise
+p90 4.1 within the model's 2-8); median noise level 2.6; mean CASCADE rate 0.59 spikes/s; OASIS
+0.08 events/s; 26 ROIs with a floored baseline. Identity (start time, identifier, subject 496001363)
+copied from Allen's NWB; times on the session clock (5.74-631.01 s).
+
+**Sanity check against Allen** (not a validation: see Limitations): for the 201 cells that match an
+Allen ROI (suite2p app, IoU > 0.5), our ΔF/F correlates with Allen's own `DfOverF` with median r =
+0.87 (IQR 0.81-0.94), and our OASIS events (smoothed) with Allen's L0 `DfOverFEvents` with median
+r = 0.89. Synthetic fixture (planted spikes, one spike ≈ 0.2 ΔF/F): CASCADE rate vs planted spikes
+median r > 0.85, mean rate within 10 % of the planted rate; OASIS r ≈ 0.78, event count ≈ spike count.
 
 ## Limitations
 
@@ -152,7 +171,12 @@ DEMO_RESULTS
   large event.
 - Only accepted ROIs get CASCADE rates by default; rejected ROIs are kept (masks, F, ΔF/F, OASIS).
 - Without a session NWB (or the suite2p app's session.json), the file's `session_start_time` is a
-  placeholder (1970-01-01) and times start at 0 when there are no timestamps.
+  placeholder (1970-01-01), it has no `subject` (nwb-inspect then reports it as not DANDI-ready:
+  DANDI requires a subject), and times start at 0 when there are no timestamps. Link the session's
+  NWB into `session`.
+- nwb-inspect reports a best-practice violation on every series: the timestamps are (nearly)
+  regular, so NWB would prefer `starting_time` + `rate`. They are written as explicit `timestamps`
+  on purpose (conventions.md: the session clock, as Suite2p's frame times give it).
 
 ## Licences
 

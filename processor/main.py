@@ -163,7 +163,9 @@ def process_session(s, p, out: Path, device: str) -> dict:
 
     # outputs
     meta = {"neuropil_coefficient": p.neuropil_coefficient, "baseline": f"{p.baseline} {p.baseline_window_s:g} s",
-            "tau": tau, "oasis_threshold_sd": p.oasis_threshold_sd}
+            "tau": tau, "oasis_threshold_sd": p.oasis_threshold_sd, "version": _version(),
+            "source_file": s.nwb.name if s.nwb is not None and id_source != "none" else
+            (s.session_json.get("companion_nwb") or (s.session_json.get("source") or [None])[0])}
     nwb_path = out / f"{sid}_ophys.nwb"
     warnings += nwb_out.write(nwb_path, sid, identity, planes, meta)
     figs = []

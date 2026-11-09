@@ -68,7 +68,9 @@ def test_nwb_contract(run):
     _, top = run
     with h5py.File(top / f"{SID}_ophys.nwb", "r") as f:
         assert f["session_start_time"][()].decode().startswith("2026-01-15T10:30:00")
-        assert f["identifier"][()].decode() == f"synthetic-{SID}"
+        import uuid
+        uuid.UUID(f["identifier"][()].decode())                       # a new UUID per file
+        assert f"identifier synthetic-{SID}" in f["general/notes"][()].decode()
         assert f["general/subject/subject_id"][()].decode() == "synth01"
         o = f["processing/ophys"]
         ps = o["ImageSegmentation/PlaneSegmentation"]

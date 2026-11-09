@@ -14,12 +14,14 @@ processing/ophys/
 all with `timestamps` (seconds, session clock; one array, linked by the other series). With more
 than one plane, plane k > 0 gets `PlaneSegmentation_plane<k>`, `RoiResponseSeries_plane<k>`, ...
 
-The file's identity (session_start_time, identifier, session_description, subject,
+The file gets a new UUID identifier; the source NWB's file name and identifier go into `notes`.
+Its identity (session_start_time, session_id, session_description, subject, keywords,
 timestamps_reference_time, ...) is copied from the session NWB, else from the suite2p app's
 session.json (`source_nwb`), so files from different apps of the same session line up.
 """
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -97,10 +99,16 @@ def write(path: Path, session_id: str, identity: dict, planes: list[dict], meta:
                         "session's NWB into the `session` input to fix")
     kwargs = dict(
         session_description=identity.get("session_description") or f"two-photon calcium imaging, session {session_id}",
-        identifier=identity.get("identifier") or f"ophys-traces-{session_id}",
+        identifier=str(uuid.uuid4()),      # a new identifier per file (NWB/DANDI: unique)
         session_start_time=start,
         session_id=identity.get("session_id") or session_id,
     )
+    src = meta.get("source_file")
+    kwargs["notes"] = (f"derived from {src} (identifier {identity.get('identifier', 'unknown')}) "
+                       if src else "derived from Suite2p output ") + f"by ophys-traces {meta.get('version', '')}".strip()
+    if identity.get("keywords"):
+        kw = identity["keywords"]
+        kwargs["keywords"] = list(kw) if isinstance(kw, (list, tuple)) else [kw]
     trt = _dt(identity.get("timestamps_reference_time"))
     if trt is not None:
         kwargs["timestamps_reference_time"] = trt
@@ -177,17 +185,17 @@ def write(path: Path, session_id: str, identity: dict, planes: list[dict], meta:
                                        description=desc)
             return rs
 
-        fl.add_roi_response_series(series(f"RoiResponseSeries{sfx}", pl["F"], "a.u.",
+        fl.add_roi_response_series(series(f"RoiResponseSeries{sfx}", pl["F"], "n.a.",
                                           "raw ROI fluorescence F (Suite2p F.npy)"))
-        fl.add_roi_response_series(series(f"Neuropil{sfx}", pl["Fneu"], "a.u.",
+        fl.add_roi_response_series(series(f"Neuropil{sfx}", pl["Fneu"], "n.a.",
                                           "neuropil fluorescence (Suite2p Fneu.npy)"))
-        dfo.add_roi_response_series(series(f"RoiResponseSeries{sfx}", pl["dff"], "ΔF/F (fraction)",
+        dfo.add_roi_response_series(series(f"RoiResponseSeries{sfx}", pl["dff"], "n.a.",
                                            f"ΔF/F of F - {meta['neuropil_coefficient']} x neuropil, "
                                            f"baseline {meta['baseline']}"))
-        dec.add_roi_response_series(series(f"RoiResponseSeries{sfx}", pl["cascade"], "spikes/s",
+        dec.add_roi_response_series(series(f"RoiResponseSeries{sfx}", pl["cascade"], "hertz",
                                            f"CASCADE spike rate, model {pl['cascade_model']}; NaN for ROIs it was not run on "
                                            "(not accepted, unless CASCADE_ALL_ROIS=true)"))
-        dec.add_roi_response_series(series(f"OASIS{sfx}", pl["oasis"], "ΔF/F (fraction)",
+        dec.add_roi_response_series(series(f"OASIS{sfx}", pl["oasis"], "n.a.",
                                            f"OASIS events (AR(1), tau {meta['tau']} s, minimal event "
                                            f"{meta['oasis_threshold_sd']} noise s.d.)"))
         ops = pl["ops"]

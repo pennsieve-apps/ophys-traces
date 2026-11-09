@@ -103,7 +103,7 @@ def snr_hist(sid: str, out: Path, snr, accepted) -> dict:
     bins = np.linspace(min(0, float(np.nanmin(snr[finite])) if finite.any() else 0), max(hi, 5), 40)
     ax.hist(snr[finite & ~accepted], bins=bins, color="0.7", label="other ROIs")
     ax.hist(snr[finite & accepted], bins=bins, color="tab:green", alpha=0.8, label="accepted cells")
-    ax.set_xlabel("SNR of ΔF/F (95th percentile above the median, in noise s.d.)")
+    ax.set_xlabel("SNR of ΔF/F (99th percentile above the median, in noise s.d.)")
     ax.set_ylabel("ROIs")
     ax.legend(fontsize=7, frameon=False)
     ax.set_title(f"{sid}: signal-to-noise ratio", fontsize=10)
@@ -112,8 +112,9 @@ def snr_hist(sid: str, out: Path, snr, accepted) -> dict:
     fig.savefig(p, dpi=DPI)
     plt.close(fig)
     return {"path": p.name, "caption": (
-        f"Signal-to-noise ratio of each ROI in {sid}: how far its large calcium transients (the 95th "
-        "percentile of ΔF/F) rise above its median, in units of the frame-to-frame noise. Cells that fire "
-        "clear transients reach 5-20 or more; values near 2-3 are mostly noise (the 95th percentile of pure "
-        "Gaussian noise is about 1.6). Accepted cells (green) should sit mostly to the right of the other "
+        f"Signal-to-noise ratio of each ROI in {sid}: how far its large calcium transients (the 99th "
+        "percentile of ΔF/F) rise above its median, in units of the frame-to-frame noise. Pure Gaussian "
+        "noise gives about 2.3; cells with clear, frequent transients reach 5-20 or more, and sparsely "
+        "firing cells (active in under 1 % of frames) can sit near 3-4 although their transients are real. "
+        "Accepted cells (green) should sit mostly to the right of the other "
         "ROIs (grey).")}

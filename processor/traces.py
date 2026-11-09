@@ -13,7 +13,7 @@ Neuropil correction, baseline, ΔF/F, noise level, SNR and OASIS events.
 - ΔF/F = (F_corr - F0) / F0 (a fraction, not %).
 - Noise level (CASCADE's definition, Rupprecht et al. 2021): median(|ΔF/F[t+1] - ΔF/F[t]|) /
   sqrt(frame rate) * 100. Comparable across frame rates; 1-2 is very clean, > 8 noisy.
-- SNR: (95th percentile of ΔF/F - median) / sigma, sigma = the noise s.d. estimated from the
+- SNR: (99th percentile of ΔF/F - median) / sigma, sigma = the noise s.d. estimated from the
   frame-to-frame differences (1.4826 * median|diff| / sqrt(2)), robust to the activity itself.
 - OASIS events: `oasis.functions.deconvolve` (AR(1) with the decay TAU) on each ΔF/F trace,
   with a minimal event size `s_min` = OASIS_THRESHOLD_SD x the noise s.d.: discrete events with
@@ -75,7 +75,7 @@ def noise_level(d: np.ndarray, fs: float) -> np.ndarray:
 
 def snr(d: np.ndarray) -> np.ndarray:
     sigma = 1.4826 * np.nanmedian(np.abs(np.diff(d, axis=1)), axis=1) / np.sqrt(2)
-    sig = np.nanpercentile(d, 95, axis=1) - np.nanmedian(d, axis=1)
+    sig = np.nanpercentile(d, 99, axis=1) - np.nanmedian(d, axis=1)
     return sig / np.maximum(sigma, 1e-9)
 
 
