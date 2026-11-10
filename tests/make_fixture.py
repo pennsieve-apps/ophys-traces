@@ -64,6 +64,8 @@ def simulate(cfg, seed):
     prob = np.r_[rng.uniform(0.6, 0.99, nc), rng.uniform(0.02, 0.3, nn)]
     iscell = np.c_[(prob > 0.5).astype(float), prob]
     img = rng.uniform(100, 200, (LY, LX)).astype(np.float32)
+    for st in stat:                       # cells are bright in the mean image (row = ypix, col = xpix)
+        img[st["ypix"], st["xpix"]] += 400
     ops = {"fs": fs, "tau": 0.7, "Ly": LY, "Lx": LX, "meanImg": img, "max_proj": img * 1.5,
            "Vcorr": img / 200, "yrange": [0, LY], "xrange": [0, LX], "nframes": T}
     return {"F": F.astype(np.float32), "Fneu": neu.astype(np.float32), "stat": np.array(stat, dtype=object),

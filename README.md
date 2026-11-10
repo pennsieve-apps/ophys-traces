@@ -27,7 +27,8 @@ simultaneously, so its output is calibrated), and **discrete events** from OASIS
 written into one NWB file per session that also carries the cells' outlines and the session's
 identity, ready for the next apps and for DANDI.
 
-For the computational analyst: F_corr = F − r·F_neu (r = 0.7); F0 = Suite2p's maximin baseline
+For the computational analyst: F_corr = F − r·F_neu (r = 0.7, or `auto`: one r per session after
+Dipoppa et al. 2018); F0 = Suite2p's maximin baseline
 (Gaussian σ 10 frames, running min then max over 60 s) or a running 8th percentile; F0 is floored
 at 10 % of the ROI's median raw F; ΔF/F = (F_corr − F0)/F0. CASCADE (CascadeTorch at c6978d5 plus
 the upstream timing fix, below) runs on the accepted ROIs with a model chosen by indicator, frame
@@ -58,10 +59,10 @@ warning.
 
 | Object | Content |
 |---|---|
-| `ImageSegmentation/PlaneSegmentation` | Every Suite2p ROI: `pixel_mask` (x = column, y = row, weight = Suite2p's `lam`), `iscell` (classifier probability), `accepted` (analysed downstream), `roi_id`, `plane`, `snr`, `noise_level`, `f0_floored`. |
+| `ImageSegmentation/PlaneSegmentation` | Every Suite2p ROI: `pixel_mask` (x = row = Suite2p's `ypix`, y = column = `xpix`, weight = Suite2p's `lam`: x is the first axis of the stored images, as in Suite2p's own NWB export and Allen's files), `iscell` (classifier probability), `accepted` (analysed downstream), `roi_id`, `plane`, `snr`, `noise_level`, `f0_floored`. |
 | `Fluorescence/RoiResponseSeries`, `Fluorescence/Neuropil` | F and F_neu (Suite2p units). |
 | `DfOverF/RoiResponseSeries` | ΔF/F (fraction). |
-| `Deconvolved/RoiResponseSeries` | CASCADE spike rate (spikes/s, NWB unit `hertz`); NaN for ROIs not accepted (unless `CASCADE_ALL_ROIS=true`); 0 in the first and last ~32 frames, where CASCADE's window has no data. |
+| `Deconvolved/RoiResponseSeries` | CASCADE spike rate (spikes/s, NWB unit `hertz`); NaN for ROIs not accepted (unless `CASCADE_ALL_ROIS=true`); NaN in the first and last ~32 frames, where CASCADE's window has no data. |
 | `Deconvolved/OASIS` | OASIS event amplitudes (ΔF/F units), 0 between events. |
 | `SummaryImages` | Suite2p's mean image, max projection and correlation map. |
 
@@ -104,7 +105,7 @@ late.
 
 | Name | Default | What it does |
 |---|---|---|
-| `NEUROPIL_COEFFICIENT` | `0.7` | r in F − r·F_neu. Allen estimates r per ROI (median 0.22 in the demo session); a lower r gives smaller ΔF/F. |
+| `NEUROPIL_COEFFICIENT` | `0.7` | r in F − r·F_neu, or `auto`: for each ROI, F_neu is binned into 20 intervals, the 5th percentile of F is taken in each, and the slope of a line through them is the ROI's r; the session's r is the mean over cells with skewness > 4 (sparse firers, whose lower envelope is their baseline), clipped to 0-1.5 (the method of Dipoppa et al. 2018, after Peron et al. 2015). Per-ROI slopes are in `rois.csv` (`neuropil_alpha`); the r used and the median F_neu/F are in `summary.json`. |
 | `BASELINE` | `maximin` | `maximin` or `percentile`. |
 | `BASELINE_WINDOW_S` | `60` | Baseline window (s). |
 | `BASELINE_PERCENTILE` | `8` | For `percentile`. |
@@ -127,48 +128,51 @@ late.
 ## Runtime
 
 Measured with the `cpu` image in Docker, amd64 emulation on an Apple M-series Mac (4 vCPU,
-`--memory 4g`), on the suite2p app's output for the full Allen demo (1,363 ROIs, 385 accepted,
-9,405 frames at 15.04 Hz): **420 s wall on an otherwise idle machine, peak memory 2.1 GB**
-(cgroup `memory.peak`); 1,607 s (CASCADE 1,468 s on the 385 accepted cells, OASIS 22 s) in an
-earlier run while other builds shared the CPUs. CASCADE dominates and grows with ROIs × frames
-(with `CASCADE_ALL_ROIS=true` it would be 3.5× longer here). Synthetic fixture (42 ROIs): under
-30 s. Memory is small: the traces (ROIs × frames, a few copies) plus CASCADE's input windows,
+`--memory 4g --memory-swap 4g`), on the suite2p app's output for the full Allen demo (1,363 ROIs,
+383 accepted, 9,405 frames at 15.04 Hz): **468 s wall, peak memory 2.3 GB** (cgroup `memory.peak`;
+log in `data/work/allen-2p/logs/ophys-traces/`). An earlier run with other builds sharing the CPUs
+took 1,607 s, of which CASCADE 1,468 s and OASIS 22 s: CASCADE dominates and grows with ROIs ×
+frames (with `CASCADE_ALL_ROIS=true` it would be 3.5× longer here). Synthetic fixture (42 ROIs):
+under 30 s. Memory is small: the traces (ROIs × frames, a few copies) plus CASCADE's input windows,
 chunked to 512 MB.
 
 GPU numbers: to be measured on the dev compute node.
 
 ## Results on the demo
 
-Full Allen demo (`workflow-systems-neuroscience/data/work/allen-2p/ophys-traces/`): 385 accepted
-cells; model `Global_EXC_15Hz_smoothing100ms` (indicator GCaMP6f from the session NWB, 15 Hz, noise
-p90 4.1 within the model's 2-8); median SNR 4.0; median noise level 2.6; mean CASCADE rate 0.59 spikes/s; OASIS
-0.08 events/s; 26 ROIs with a floored baseline. Identity (start time, identifier, subject 496001363)
-copied from Allen's NWB; times on the session clock (5.74-631.01 s). nwb-inspect: pass, DANDI-ready
+Full Allen demo (`workflow-systems-neuroscience/data/work/allen-2p/ophys-traces/`, from the suite2p
+app's Docker run; log in `data/work/allen-2p/logs/ophys-traces/`): 383 accepted cells; model
+`Global_EXC_15Hz_smoothing100ms` (indicator GCaMP6f from the session NWB, 15 Hz, noise p90 4.1
+within the model's 2-8); r = 0.7; median F_neu/F 0.92 (summary.json warns: strong neuropil); median
+SNR 4.1; median noise level 2.6; mean CASCADE rate 0.59 spikes/s; OASIS 0.08 events/s; 26 ROIs
+with a floored baseline. `NEUROPIL_COEFFICIENT=auto` gives r = 0.70 on this session (mean over 176
+skewed cells), i.e. the default. Identity (start time, subject 496001363) copied from Allen's NWB, a
+new identifier; times on the session clock (5.74-631.01 s). The masks overlay Allen's own masks
+(39,668 shared pixels; 22,756 if transposed) and the bright cells of the mean image. nwb-inspect: pass, DANDI-ready
 (no schema errors, no violations; 2 suggestions: experimenter and keywords are not in Allen's file).
 
 **Sanity check against Allen** (not a validation: see Limitations): for the 201 cells that match an
 Allen ROI (suite2p app, IoU > 0.5), our ΔF/F correlates with Allen's own `DfOverF` with median r =
 0.87 (IQR 0.81-0.94), and our OASIS events (smoothed) with Allen's L0 `DfOverFEvents` with median
-r = 0.89. Synthetic fixture (planted spikes, one spike ≈ 0.2 ΔF/F): CASCADE rate vs planted spikes
+r = 0.89; our ΔF/F amplitudes (99th percentile) are a median 3.1× Allen's, the effect of r (Limitations). Synthetic fixture (planted spikes, one spike ≈ 0.2 ΔF/F): CASCADE rate vs planted spikes
 median r > 0.85, mean rate within 10 % of the planted rate; OASIS r ≈ 0.78, event count ≈ spike count.
 
 ## Limitations
 
-- CASCADE's rates are calibrated on its ground truth. ΔF/F amplitudes depend on the neuropil
-  coefficient and the baseline: with r = 0.7 on a recording with strong neuropil (the Allen demo),
-  F0 is small and ΔF/F large, so absolute rates can be overestimated; relative rates across cells
-  and time are more robust. Compare like with like.
+- **Absolute ΔF/F and CASCADE rates depend on the neuropil coefficient r.** F0 of F − r·F_neu
+  shrinks as r grows, so ΔF/F (and with it CASCADE's noise level and rates) grows. A sweep
+  on the Allen demo (amplitude relative to Allen's own DfOverF, CASCADE noise level): r = 0 → 1.12×,
+  noise 0.87; r = 0.7 → 2.77×, noise 2.59. CASCADE expects a noise level of about 1 for Allen data.
+  The demo's median F_neu/F is 0.92: strong neuropil, for which `summary.json` warns (above 0.8).
+  Relative rates across cells and time are more robust than absolute ones; compare like with like,
+  and consider `NEUROPIL_COEFFICIENT=auto` or a lower r when absolute rates matter.
 - CASCADE's ground truth includes Allen Institute recordings: datasets 10-13 of its database are
   Huang, Ledochowitsch et al. (eLife 2021, doi:10.7554/eLife.51675; Allen Institute cell-attached
-  recordings in GCaMP6 transgenic mice, the data behind DANDI:000048), and the `Global_EXC` models are
+  recordings in GCaMP6 transgenic mice, related to DANDI:000048), and the `Global_EXC` models are
   trained on them (files `CAttached_Allen_Emx1_*` in CASCADE's `Ground_truth/`; numbered DS09-DS12 in
   the bundled models' `config.yaml` training lists). The demo session itself is not
   in it, but the lab, lines and pipeline overlap, so results on the Allen demo are a **sanity check,
   not a validation** of the spike rates.
-- CASCADE's README puts the Allen Visual Coding data at a noise level of about 1. With r = 0.7 the
-  demo's ΔF/F (and with it the noise level) is about 3× larger than with Allen's own per-ROI r
-  (median 0.22), because F0 of the neuropil-corrected trace is small: set NEUROPIL_COEFFICIENT
-  lower for recordings with strong neuropil if you need absolute rates.
 - OASIS events are thresholded deconvolution, not detected action potentials; a burst is often one
   large event.
 - Only accepted ROIs get CASCADE rates by default; rejected ROIs are kept (masks, F, ΔF/F, OASIS).
@@ -194,6 +198,7 @@ full author lists in `CITATION.cff`.
 - Friedrich J, Zhou P, Paninski L (2017). Fast online deconvolution of calcium imaging data. *PLOS Computational Biology* 13:e1005423. doi:10.1371/journal.pcbi.1005423, PMID: 28291787
 - Stringer C, Ki C, Del Grosso N, LaFosse P, Zhang Q, Pachitariu M (2026). Extracting large-scale neural activity with Suite2p. *bioRxiv*. doi:10.64898/2026.02.04.703741
 - Huang L, Ledochowitsch P, Knoblich U, Lecoq J, Murphy GJ, Reid RC, de Vries SE, Koch C, Zeng H, Buice MA, Waters J, Li L (2021). Relationship between simultaneously recorded spiking activity and fluorescence signal in GCaMP6 transgenic mice. *eLife* 10:e51675. doi:10.7554/eLife.51675, PMID: 33683198 (CASCADE ground truth that includes Allen recordings; see Limitations)
+- With `NEUROPIL_COEFFICIENT=auto`: Dipoppa M, Ranson A, Krumin M, Pachitariu M, Carandini M, Harris KD (2018). Vision and Locomotion Shape the Interactions between Neuron Types in Mouse Visual Cortex. *Neuron* 98:602-615.e8. doi:10.1016/j.neuron.2018.03.037, PMID: 29656873
 - Rübel O, Tritt A, Ly R, Dichter BK, Ghosh S, Niu L, Baker P, Soltesz I, Ng L, Svoboda K, Frank L, Bouchard KE (2022). The Neurodata Without Borders ecosystem for neurophysiological data science. *eLife* 11:e78362. doi:10.7554/eLife.78362, PMID: 36193886
 - Software: CascadeTorch (Rupprecht P), https://github.com/PTRRupprecht/CascadeTorch, commit c6978d5; OASIS (Friedrich J), https://github.com/j-friedrich/OASIS, 0.3.2.
 - Demo data: Baker C (2024). Allen Institute - Visual Coding - Optical Physiology. DANDI Archive. doi:10.48324/dandi.000728/0.240827.1809 (CC-BY-4.0); and de Vries SEJ, Lecoq JA, Buice MA, et al. (2020; full author list in `CITATION.cff` and the suite2p app's README). A large-scale standardized physiological survey reveals functional organization of the mouse visual cortex. *Nature Neuroscience* 23:138-151. doi:10.1038/s41593-019-0550-9, PMID: 31844315

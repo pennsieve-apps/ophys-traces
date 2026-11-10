@@ -28,6 +28,7 @@ CITE_CASCADE = "10.1038/s41593-021-00895-5"
 CITE_CASCADE_GC8 = "10.1038/s41592-026-03183-x"
 CITE_OASIS = "10.1371/journal.pcbi.1005423"
 CITE_SUITE2P = "10.64898/2026.02.04.703741"
+CITE_NEUROPIL_AUTO = "10.1016/j.neuron.2018.03.037"
 DEFAULT_TAU = 0.7
 log = logging.getLogger("processor")
 
@@ -103,13 +104,27 @@ def process_session(s, p, out: Path, device: str) -> dict:
         else:
             prob = np.asarray(iscell[:, 1], float)
             acc = prob >= p.classifier_threshold if p.classifier_threshold is not None else iscell[:, 0] > 0
-        dff, F0, floored = traces.dff(d["F"], d["Fneu"], fs, p.neuropil_coefficient, p.baseline,
+        Fa, Na = np.asarray(d["F"], np.float64), np.asarray(d["Fneu"], np.float64)
+        ratio = float(np.median(np.median(Na[acc], axis=1) / np.maximum(np.median(Fa[acc], axis=1), 1e-9))) \
+            if acc.any() else float("nan")
+        if np.isfinite(ratio) and ratio > 0.8:
+            warnings.append(f"plane{pl.index}: neuropil is strong (median Fneu/F of accepted ROIs {ratio:.2f} > 0.8): "
+                            "absolute ΔF/F and CASCADE rates depend on NEUROPIL_COEFFICIENT (see README)")
+        alpha_roi, n_alpha = np.full(n, np.nan), 0
+        if p.neuropil_coefficient is None:
+            r_used, alpha_roi, n_alpha = traces.neuropil_alpha_session(Fa, Na, acc)
+            log.info(f"{sid} plane{pl.index}: NEUROPIL_COEFFICIENT=auto -> {r_used:.3f} "
+                     f"(Dipoppa et al. 2018, mean over {n_alpha} ROIs)")
+        else:
+            r_used = p.neuropil_coefficient
+        dff, F0, floored = traces.dff(d["F"], d["Fneu"], fs, r_used, p.baseline,
                                       p.baseline_window_s, p.baseline_percentile)
         planes.append({"plane": pl.index, "stat": d["stat"], "F": np.asarray(d["F"]), "Fneu": np.asarray(d["Fneu"]),
                        "dff": dff, "F0": F0, "f0_floored": floored, "times": times, "fs": fs,
                        "iscell_prob": prob, "accepted": acc, "roi_ids": np.arange(n), "ops": d["ops"],
                        "noise": traces.noise_level(dff, fs), "snr": traces.snr(dff),
-                       "time_source": d["time_source"]})
+                       "time_source": d["time_source"], "neuropil_coefficient": r_used,
+                       "neuropil_ratio": ratio, "alpha_roi": alpha_roi, "alpha_n": n_alpha})
     import numpy as np
     noise_acc = np.concatenate([pl["noise"][pl["accepted"]] for pl in planes]) if planes else np.array([])
     noise_all = np.concatenate([pl["noise"] for pl in planes])
@@ -118,6 +133,11 @@ def process_session(s, p, out: Path, device: str) -> dict:
     models = cascade_infer.available_models()
     model, why = cascade_infer.choose_model(models, family, fs0 or planes[0]["fs"], p90, p.cascade_model)
     log.info(f"{sid}: CASCADE model {model['name']} ({fam_why}; {why}); OASIS tau {tau:g} s")
+    if p90 < min(model["noise_levels"]):
+        msg = (f"noise level p90 {p90:.2f} is below the lowest noise level {min(model['noise_levels']):g} "
+               f"{model['name']} was trained on (CASCADE uses its lowest-noise networks)")
+        log.info(f"{sid}: {msg}")
+        warnings.append(msg)
 
     # pass 2: spike inference, events
     for pl in planes:
@@ -152,6 +172,7 @@ def process_session(s, p, out: Path, device: str) -> dict:
                 "compact": round(float(st.get("compact", np.nan)), 3),
                 "snr": round(float(pl["snr"][i]), 3), "noise_level": round(float(pl["noise"][i]), 3),
                 "f0_median": round(float(np.median(pl["F0"][i])), 2),
+                "neuropil_alpha": (round(float(pl["alpha_roi"][i]), 4) if np.isfinite(pl["alpha_roi"][i]) else ""),
                 "f0_floored": round(float(pl["f0_floored"][i]), 3),
                 "dff_max": round(float(np.nanmax(pl["dff"][i])), 4),
                 "cascade_rate_hz": (round(float(np.mean(pl["cascade"][i, valid])), 4)
@@ -162,7 +183,7 @@ def process_session(s, p, out: Path, device: str) -> dict:
             })
 
     # outputs
-    meta = {"neuropil_coefficient": p.neuropil_coefficient, "baseline": f"{p.baseline} {p.baseline_window_s:g} s",
+    meta = {"neuropil_coefficient": ", ".join(f"{pl['neuropil_coefficient']:.3g}" for pl in planes), "baseline": f"{p.baseline} {p.baseline_window_s:g} s",
             "tau": tau, "oasis_threshold_sd": p.oasis_threshold_sd, "version": _version(),
             "source_file": s.nwb.name if s.nwb is not None and id_source != "none" else
             (s.session_json.get("companion_nwb") or (s.session_json.get("source") or [None])[0])}
@@ -195,6 +216,10 @@ def process_session(s, p, out: Path, device: str) -> dict:
         "median_noise_level_accepted": round(float(np.nanmedian(noise_acc)), 3) if noise_acc.size else None,
         "mean_cascade_rate_hz_accepted": round(float(np.nanmean(rate_all[acc_all])), 4) if acc_all.any() else None,
         "mean_oasis_event_rate_hz_accepted": round(float(np.nanmean(ev_all[acc_all])), 4) if acc_all.any() else None,
+        "neuropil_coefficient": [round(pl["neuropil_coefficient"], 4) for pl in planes] if len(planes) > 1
+        else round(planes[0]["neuropil_coefficient"], 4),
+        "neuropil_coefficient_source": "auto (Dipoppa et al. 2018)" if p.neuropil_coefficient is None else "parameter",
+        "median_neuropil_to_f_ratio": round(float(np.nanmedian([pl["neuropil_ratio"] for pl in planes])), 3),
         "n_f0_floored": int(sum(int((pl["f0_floored"] > 0.1).sum()) for pl in planes)),
         "tau": tau, "cascade_rois": "all" if p.cascade_all_rois else "accepted", "seconds": round(time.time() - t_session, 1),
         **{k: v for k, v in s.sheet.items() if k in ("subject_id", "condition", "group")},
@@ -298,7 +323,8 @@ def main() -> int:
     gpu = None
     if device == "cuda":
         gpu = {"name": torch.cuda.get_device_name(0), "peak_vram_mb": round(torch.cuda.max_memory_allocated() / 2**20, 1)}
-    cites = [CITE_CASCADE] + ([CITE_CASCADE_GC8] if "GC8" in families else []) + [CITE_OASIS, CITE_SUITE2P]
+    cites = [CITE_CASCADE] + ([CITE_CASCADE_GC8] if "GC8" in families else []) + [CITE_OASIS, CITE_SUITE2P] + \
+        ([CITE_NEUROPIL_AUTO] if p.neuropil_coefficient is None else [])
     variant = os.environ.get("APP_VARIANT") or ("gpu" if os.environ.get("TORCH_FLAVOUR") == "cuda" else "cpu")
     prov = {"app": APP, "version": version, "variant": variant, "tools": _tool_versions(),
             "parameters": p.as_env(),

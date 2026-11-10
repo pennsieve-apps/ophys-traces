@@ -2,7 +2,7 @@
 The session's NWB ophys file (conventions.md, "Calcium imaging", port `traces`):
 
 processing/ophys/
-  ImageSegmentation/PlaneSegmentation        pixel_mask (x, y, weight), iscell (classifier
+  ImageSegmentation/PlaneSegmentation        pixel_mask (x = row, y = column, weight), iscell (classifier
                                              probability), accepted (bool), plus roi_id, plane,
                                              snr, noise_level, f0_floored
   Fluorescence/RoiResponseSeries             F (raw ROI fluorescence, Suite2p units)
@@ -178,7 +178,9 @@ def write(path: Path, session_id: str, identity: dict, planes: list[dict], meta:
         ps.add_column("f0_floored", "fraction of frames where the ΔF/F baseline hit its floor")
         for i, s in enumerate(pl["stat"]):
             lam = np.asarray(s["lam"], float)
-            mask = [(int(x), int(y), float(w)) for x, y, w in zip(s["xpix"], s["ypix"], lam)]
+            # NWB pixel_mask (x, y, weight) with x = the first (row) axis of the image, as Suite2p's own
+            # NWB export and the Allen files write it (conventions.md, traces): x = ypix, y = xpix
+            mask = [(int(r), int(c), float(w)) for r, c, w in zip(s["ypix"], s["xpix"], lam)]
             ps.add_roi(pixel_mask=mask, roi_id=int(pl["roi_ids"][i]), plane=int(k),
                        iscell=float(pl["iscell_prob"][i]), accepted=bool(pl["accepted"][i]),
                        snr=float(pl["snr"][i]), noise_level=float(pl["noise"][i]),
@@ -195,7 +197,7 @@ def write(path: Path, session_id: str, identity: dict, planes: list[dict], meta:
             if regular is not None:     # conventions.md "Time": regular series as starting_time + rate
                 return RoiResponseSeries(name=name, data=d, rois=region, unit=unit,
                                          starting_time=float(times[0]), rate=regular, description=desc)
-            if ts_link is None or len(ts_link.timestamps) != len(times):
+            if ts_link is None or not np.array_equal(np.asarray(ts_link.timestamps), times):
                 rs = RoiResponseSeries(name=name, data=d, rois=region, unit=unit, timestamps=times,
                                        description=desc)
                 ts_link = rs

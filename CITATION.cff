@@ -356,6 +356,31 @@ references:
   - type: other
     value: '33683198'
     description: PubMed ID
+- type: article
+  title: Vision and Locomotion Shape the Interactions between Neuron Types in Mouse Visual Cortex
+  authors:
+  - family-names: Dipoppa
+    given-names: Mario
+  - family-names: Ranson
+    given-names: Adam
+  - family-names: Krumin
+    given-names: Michael
+  - family-names: Pachitariu
+    given-names: Marius
+  - family-names: Carandini
+    given-names: Matteo
+  - family-names: Harris
+    given-names: Kenneth D.
+  year: 2018
+  doi: 10.1016/j.neuron.2018.03.037
+  journal: Neuron
+  volume: 98
+  start: '602'
+  end: 615.e8
+  identifiers:
+  - type: other
+    value: '29656873'
+    description: PubMed ID
 - type: data
   title: Allen Institute - Visual Coding - Optical Physiology
   authors:

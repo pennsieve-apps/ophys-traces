@@ -53,7 +53,7 @@ def _bool(name: str, default: bool) -> bool:
 
 @dataclass
 class Params:
-    neuropil_coefficient: float
+    neuropil_coefficient: float | None     # None = auto (Dipoppa et al. 2018)
     baseline: str
     baseline_window_s: float
     baseline_percentile: float
@@ -69,7 +69,10 @@ class Params:
     seed: int
 
     def as_env(self) -> dict:
-        return {k.upper(): ("" if v is None else v) for k, v in asdict(self).items()}
+        out = {k.upper(): ("" if v is None else v) for k, v in asdict(self).items()}
+        if self.neuropil_coefficient is None:
+            out["NEUROPIL_COEFFICIENT"] = "auto"
+        return out
 
 
 def read_params() -> Params:
@@ -85,7 +88,8 @@ def read_params() -> Params:
     if use_gpu not in ("auto", "true", "false"):
         raise BadParameter(f"USE_GPU={use_gpu!r}: expected auto, true or false")
     return Params(
-        neuropil_coefficient=_num("NEUROPIL_COEFFICIENT", 0.7, lo=0, hi=1.5),
+        neuropil_coefficient=(None if _get("NEUROPIL_COEFFICIENT", "0.7").lower() == "auto"
+                              else _num("NEUROPIL_COEFFICIENT", 0.7, lo=0, hi=1.5)),
         baseline=baseline,
         baseline_window_s=_num("BASELINE_WINDOW_S", 60, lo=1, hi=3600),
         baseline_percentile=_num("BASELINE_PERCENTILE", 8, lo=0, hi=50),

@@ -1,7 +1,9 @@
 """
 Neuropil correction, baseline, ΔF/F, noise level, SNR and OASIS events.
 
-- F_corr = F - r * F_neu (r = NEUROPIL_COEFFICIENT, 0.7 by default as in Suite2p and most labs).
+- F_corr = F - r * F_neu (r = NEUROPIL_COEFFICIENT, 0.7 by default as in Suite2p and most labs;
+  `auto`: one coefficient per session estimated as in Dipoppa et al. 2018, see
+  neuropil_alpha_session).
 - F0, the baseline of F_corr:
   - `maximin` (Suite2p's `dcnv_preprocess`): Gaussian smoothing (sigma 10 frames), then a
     running minimum and a running maximum, each over BASELINE_WINDOW_S;
@@ -25,6 +27,51 @@ import numpy as np
 from scipy.ndimage import gaussian_filter1d, maximum_filter1d, minimum_filter1d
 
 FLOOR_FRACTION = 0.1
+
+
+SKEW_MIN = 4.0
+CLIP = (0.0, 1.5)
+
+
+def neuropil_alpha_per_roi(F, Fneu, n_bins: int = 20, q: float = 5.0) -> np.ndarray:
+    """Per-ROI neuropil coefficient after Dipoppa et al. (2018, Neuron; method of Peron et al. 2015):
+    bin the neuropil trace into 20 intervals, take the 5th percentile of the ROI's raw fluorescence
+    in each, and regress those lower-envelope values on the bin centres; the slope is alpha_i."""
+    F = np.asarray(F, np.float64)
+    N = np.asarray(Fneu, np.float64)
+    out = np.full(F.shape[0], np.nan)
+    for i in range(F.shape[0]):
+        n, f = N[i], F[i]
+        edges = np.quantile(n, np.linspace(0, 1, n_bins + 1))
+        if np.ptp(edges) == 0:
+            continue
+        idx = np.clip(np.searchsorted(edges, n, side="right") - 1, 0, n_bins - 1)
+        xs, ys = [], []
+        for b in range(n_bins):
+            m = idx == b
+            if m.sum() >= 5:
+                xs.append(n[m].mean())
+                ys.append(np.percentile(f[m], q))
+        if len(xs) >= 3:
+            out[i] = np.polyfit(xs, ys, 1)[0]
+    return out
+
+
+def neuropil_alpha_session(F, Fneu, accepted) -> tuple[float, np.ndarray, int]:
+    """The session's coefficient as in Dipoppa et al. (2018): the mean of the per-ROI alpha over
+    cells with high skewness (> 4) of the raw trace (sparse firing, so the lower envelope is the
+    baseline); falls back to the median over accepted ROIs when none is that skewed. Clipped to
+    0-1.5. Returns (alpha, per-ROI alpha, number of ROIs it was averaged over)."""
+    from scipy.stats import skew
+    a = neuropil_alpha_per_roi(F, Fneu)
+    sk = skew(np.asarray(F, np.float64), axis=1)
+    use = np.isfinite(a) & (sk > SKEW_MIN) & np.asarray(accepted, bool)
+    if use.sum() == 0:
+        use = np.isfinite(a) & np.asarray(accepted, bool)
+        val = float(np.median(a[use])) if use.any() else 0.7
+    else:
+        val = float(np.mean(a[use]))
+    return float(np.clip(val, *CLIP)), a, int(use.sum())
 
 
 def neuropil_correct(F, Fneu, r: float) -> np.ndarray:

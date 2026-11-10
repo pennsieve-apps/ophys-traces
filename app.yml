@@ -31,9 +31,12 @@ runtime:
   timeoutSeconds: 28800
 parameters:
   - name: NEUROPIL_COEFFICIENT
-    type: number
-    description: F_corr = F - r x F_neu; 0.7 is Suite2p's and the field's default (Allen estimates r per ROI, typically 0.1-0.4).
-    defaultValue: 0.7
+    type: string
+    description: >-
+      r in F_corr = F - r x F_neu: a number (0.7, Suite2p's and the field's default) or auto (one r per
+      session from the lower envelope of F against F_neu, as in Dipoppa et al. 2018). Absolute ΔF/F
+      and CASCADE rates depend on it (README).
+    defaultValue: "0.7"
   - name: BASELINE
     type: string
     description: >-

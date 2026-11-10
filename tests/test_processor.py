@@ -85,7 +85,9 @@ def test_nwb_contract(run):
         assert st[()] == pytest.approx(100.0)                          # session clock, not re-zeroed
         assert st.attrs["rate"] == pytest.approx(15.0)
         rate = o["Deconvolved/RoiResponseSeries/data"][:]
-        assert np.isnan(rate[:, 24:]).all() and np.isfinite(rate[:, :24]).all()
+        assert np.isnan(rate[:, 24:]).all()                            # not accepted: not inferred
+        assert np.isnan(rate[:32, :24]).all() and np.isnan(rate[-32:, :24]).all()   # CASCADE's edges
+        assert np.isfinite(rate[32:-32, :24]).all()
     with h5py.File(top / f"{LAB}_ophys.nwb", "r") as f:
         st = f["processing/ophys/DfOverF/RoiResponseSeries/starting_time"]
         assert st[()] == 0.0 and st.attrs["rate"] == pytest.approx(30)
@@ -97,7 +99,7 @@ def test_spike_inference_matches_planted_spikes(run, fixture_dir, sid):
     truth = np.load(fixture_dir / "truth" / f"{sid}_truth.npz")
     n = int(truth["n_cells"])
     with h5py.File(top / f"{sid}_ophys.nwb", "r") as f:
-        rate = f["processing/ophys/Deconvolved/RoiResponseSeries/data"][:].T[:n]
+        rate = np.nan_to_num(f["processing/ophys/Deconvolved/RoiResponseSeries/data"][:].T[:n])
         ev = f["processing/ophys/Deconvolved/OASIS/data"][:].T[:n]
         fs = f["processing/ophys/DfOverF/RoiResponseSeries/starting_time"].attrs["rate"]
     sp = truth["spikes"][:n]
@@ -135,7 +137,7 @@ def test_flat_layout_and_options(fixture_dir, tmp_path, monkeypatch):
     assert s["sessions"][SID]["cascade_model"].startswith("GC8_EXC_15Hz")
     assert s["sessions"][SID]["identity_source"].endswith(".nwb")
     with h5py.File(out / "ophys-traces" / f"{SID}_ophys.nwb", "r") as f:
-        assert np.isfinite(f["processing/ophys/Deconvolved/RoiResponseSeries/data"][:]).all()
+        assert np.isfinite(f["processing/ophys/Deconvolved/RoiResponseSeries/data"][40:-40]).all()
     assert "10.1038/s41592-026-03183-x" in json.loads((out / "ophys-traces" / "provenance.json").read_text())["citations"]
 
 
@@ -167,3 +169,47 @@ def test_regular_rate():
     assert regular_rate(t) is None
     jitter = np.arange(100) / 10.0 + np.r_[0, 0.001, np.zeros(98)]   # 1 % jitter on one frame
     assert regular_rate(jitter) is None
+
+
+def test_pixel_mask_overlays_mean_image(run):
+    """pixel_mask x is the image's first (row) axis: every ROI's mask lands on its bright disc."""
+    _, top = run
+    with h5py.File(top / f"{SID}_ophys.nwb", "r") as f:
+        o = f["processing/ophys"]
+        mean = o["SummaryImages/mean"][:]
+        pm = o["ImageSegmentation/PlaneSegmentation/pixel_mask"][:]
+        idx = o["ImageSegmentation/PlaneSegmentation/pixel_mask_index"][:]
+    starts = np.r_[0, idx[:-1]]
+    bright = np.median(mean) + 200
+    for s, e in zip(starts, idx):
+        m = pm[s:e]
+        assert np.all(mean[m["x"], m["y"]] > bright)       # x = row, y = column
+    # the fixture's 5 x 6 grid of cells is not symmetric, so a transposed mask would miss
+    assert not np.all(mean[pm["y"], pm["x"]] > bright)
+
+
+def test_neuropil_auto(fixture_dir, tmp_path, monkeypatch):
+    assert _run(monkeypatch, fixture_dir / "linked", tmp_path / "o", NEUROPIL_COEFFICIENT="auto") == 0
+    s = json.loads((tmp_path / "o" / "ophys-traces" / "summary.json").read_text())["sessions"][SID]
+    assert s["neuropil_coefficient_source"].startswith("auto")
+    assert abs(s["neuropil_coefficient"] - 0.7) < 0.15          # the fixture mixes in 0.7 x neuropil
+    assert 0 < s["median_neuropil_to_f_ratio"] < 2
+
+
+def test_timestamps_linked_only_when_equal(tmp_path):
+    """Two planes with different irregular frame times keep their own timestamps."""
+    from processor.nwb_out import write
+    rng = np.random.default_rng(0)
+    planes = []
+    for k in range(2):
+        t = np.cumsum(rng.uniform(0.06, 0.08, 50)) + k * 0.01
+        stat = [{"ypix": np.array([1, 2]), "xpix": np.array([3, 3]), "lam": np.array([1.0, 1.0])}]
+        z = np.zeros((1, 50), np.float32)
+        planes.append({"plane": k, "stat": stat, "F": z, "Fneu": z, "dff": z, "cascade": z, "oasis": z,
+                       "times": t, "fs": 14.0, "iscell_prob": [0.9], "accepted": [True], "roi_ids": [0],
+                       "snr": [1.0], "noise": [1.0], "f0_floored": [0.0], "ops": {}, "cascade_model": "m"})
+    write(tmp_path / "x.nwb", "s", {}, planes, {"neuropil_coefficient": 0.7, "baseline": "b", "tau": 0.7, "oasis_threshold_sd": 3})
+    with h5py.File(tmp_path / "x.nwb", "r") as f:
+        t1 = f["processing/ophys/DfOverF/RoiResponseSeries_plane1/timestamps"][:]
+        t0 = f["processing/ophys/DfOverF/RoiResponseSeries/timestamps"][:]
+    assert np.array_equal(t1, planes[1]["times"]) and not np.array_equal(t0, t1)

@@ -15,7 +15,7 @@ model's rate (linear interpolation), and the inferred rate is interpolated back.
 
 CASCADE predicts the expected number of spikes per frame; this module returns spikes/s (x the
 model's frame rate). The first and last half-window of frames (about 32 frames) have no
-prediction and are set to 0 (`edge_frames` in the result).
+prediction and are NaN (`edge_frames` in the result).
 """
 from __future__ import annotations
 
@@ -104,14 +104,14 @@ def infer(dff: np.ndarray, times: np.ndarray, fs: float, model: dict, device: st
     T = x.shape[1]
     # CASCADE materialises a rois x frames x window float64 array: chunk the ROIs to bound memory
     chunk = max(1, int(max_bytes // (T * model["window"] * 8 * 2)))
-    out = np.zeros_like(x, dtype=np.float32)
+    out = np.full(x.shape, np.nan, dtype=np.float32)
     dev = torch.device(device)
     t0 = time.time()
     for a in range(0, x.shape[0], chunk):
         b = min(a + chunk, x.shape[0])
         y = cascade.predict(model["name"], x[a:b], model_folder=str(MODELS), threshold=0,
-                            padding=0, verbosity=0, device=dev)
-        out[a:b] = np.nan_to_num(y, nan=0.0)
+                            padding=np.nan, verbosity=0, device=dev)
+        out[a:b] = y
         if progress and time.time() - t0 > 30:
             progress(b, x.shape[0])
             t0 = time.time()
