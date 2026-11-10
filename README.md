@@ -165,7 +165,10 @@ median r > 0.85, mean rate within 10 % of the planted rate; OASIS r ≈ 0.78, ev
   noise 0.87; r = 0.7 → 2.77×, noise 2.59. CASCADE expects a noise level of about 1 for Allen data.
   The demo's median F_neu/F is 0.92: strong neuropil, for which `summary.json` warns (above 0.8).
   Relative rates across cells and time are more robust than absolute ones; compare like with like,
-  and consider `NEUROPIL_COEFFICIENT=auto` or a lower r when absolute rates matter.
+  and consider a lower r when absolute rates matter. `NEUROPIL_COEFFICIENT=auto` is not a fix for
+  this on the Allen demo: it gives about 0.70 there (the default), so the ~3× ΔF/F excess remains.
+  The auto estimate also depends on how F_neu is binned: the equal-count bins the code uses give
+  0.70 on the demo, equal-width bins gave 0.85 on the same cells.
 - CASCADE's ground truth includes Allen Institute recordings: datasets 10-13 of its database are
   Huang, Ledochowitsch et al. (eLife 2021, doi:10.7554/eLife.51675; Allen Institute cell-attached
   recordings in GCaMP6 transgenic mice, related to DANDI:000048), and the `Global_EXC` models are
