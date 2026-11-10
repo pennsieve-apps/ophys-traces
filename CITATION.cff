@@ -381,6 +381,29 @@ references:
   - type: other
     value: '29656873'
     description: PubMed ID
+- type: article
+  title: A Cellular Resolution Map of Barrel Cortex Activity during Tactile Behavior
+  authors:
+  - family-names: Peron
+    given-names: Simon P.
+  - family-names: Freeman
+    given-names: Jeremy
+  - family-names: Iyer
+    given-names: Vijay
+  - family-names: Guo
+    given-names: Caiying
+  - family-names: Svoboda
+    given-names: Karel
+  year: 2015
+  doi: 10.1016/j.neuron.2015.03.027
+  journal: Neuron
+  volume: 86
+  start: '783'
+  end: '799'
+  identifiers:
+  - type: other
+    value: '25913859'
+    description: PubMed ID
 - type: data
   title: Allen Institute - Visual Coding - Optical Physiology
   authors:
