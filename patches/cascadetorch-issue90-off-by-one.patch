@@ -1,0 +1,29 @@
+# CascadeTorch (PTRRupprecht/CascadeTorch @ c6978d5) with the spike-timing fix of CASCADE
+# (HelmchenLabSoftware/Cascade commit bcc00141a6a8, issue #90, 2026-10-27: "Predictions off by 1 time
+# point"). scripts/fetch_cascade.py applies the same two edits at image build time.
+diff --git a/cascade2p/utils.py b/cascade2p/utils.py
+index 63ef928..538e1c8 100644
+--- a/cascade2p/utils.py
++++ b/cascade2p/utils.py
+@@ -330,7 +330,7 @@ def preprocess_traces(neurons_x_time, before_frac, window_size):
+ 
+     """
+     dF_traces = neurons_x_time
+-    start = int(before_frac * window_size -1)
++    start = int(before_frac * window_size)
+     end = dF_traces.shape[1] - window_size + start + 1
+     # extract a moving window from the calcium trace
+     window_indexes = (np.expand_dims(np.arange(window_size), 0) + np.expand_dims(np.arange(dF_traces.shape[1] - window_size + 1), 0).T)
+diff --git a/cascade2p/utils_discrete_spikes.py b/cascade2p/utils_discrete_spikes.py
+index 44ec02f..7746c11 100644
+--- a/cascade2p/utils_discrete_spikes.py
++++ b/cascade2p/utils_discrete_spikes.py
+@@ -61,7 +61,7 @@ def infer_discrete_spikes(spike_rates,model_name,model_folder='Pretrained_models
+     # find non-nan indices (first and last frames of predictions are NaNs)
+     nnan_indices = ~np.isnan(prob_density)
+     # offset in time to assign inferred spikes to correct positions in the end
+-    offset = np.argmax(nnan_indices==True) - 1
++    offset = np.argmax(nnan_indices==True)
+ 
+     if np.sum(nnan_indices) > 0:
+ 
