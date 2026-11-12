@@ -1,5 +1,6 @@
 cff-version: 1.2.0
-message: If you use this app, please cite it and the works it builds on, listed under references.
+message: >-
+  If you use this app, please cite the work it implements (preferred-citation), this release, and Pennsieve (RRID:SCR_021677); the other works it builds on are listed under references.
 type: software
 title: ophys-traces
 abstract: Neuropil correction, ΔF/F, calibrated spike rates with CASCADE (CascadeTorch and its pretrained
@@ -23,6 +24,39 @@ keywords:
 - spike-inference
 - cascade
 - oasis
+# The work this app implements; the release report's "How to cite" puts it first.
+preferred-citation:
+  type: article
+  title: A database and deep learning toolbox for noise-optimized, generalized spike inference from calcium imaging
+  authors:
+  - family-names: Rupprecht
+    given-names: Peter
+  - family-names: Carta
+    given-names: Stefano
+  - family-names: Hoffmann
+    given-names: Adrian
+  - family-names: Echizen
+    given-names: Mayumi
+  - family-names: Blot
+    given-names: Antonin
+  - family-names: Kwan
+    given-names: Alex C.
+  - family-names: Dan
+    given-names: Yang
+  - family-names: Hofer
+    given-names: Sonja B.
+  - family-names: Kitamura
+    given-names: Kazuo
+  - family-names: Helmchen
+    given-names: Fritjof
+  - family-names: Friedrich
+    given-names: Rainer W.
+  year: 2021
+  doi: 10.1038/s41593-021-00895-5
+  journal: Nature Neuroscience
+  volume: 24
+  start: '1324'
+  end: '1337'
 references:
 - type: software
   title: CascadeTorch
